@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use core::ops::Mul;
 use super::*;
 use soroban_sdk::{IntoVal, testutils::Accounts};
 use token::{Client as TokenClient, TokenMetadata};
@@ -66,8 +67,8 @@ fn test_initialize_of_contract() {
 
   let contract_state: State = test_data.contract_client.get_state();
 
-  assert_eq!(contract_state.total_amnt, 0);
-  assert_eq!(contract_state.total_acct, 0);
+  assert_eq!(contract_state.total_amnt, BigInt::zero(&test_data.env));
+  assert_eq!(contract_state.total_acct, BigInt::zero(&test_data.env));
   assert_eq!(contract_state.admin, test_data.admin_id);
   assert_eq!(contract_state.currency, test_data.usdc_id);
 }
@@ -88,20 +89,20 @@ fn test_set_account() {
   test_data.contract_client.initialize(&test_data.admin_id, &test_data.usdc_id);
 
   let new_recipient = test_data.env.accounts().generate();
-  let amount_to_receive = 2500;
+  let amount_to_receive: u32 = 2500;
   let mut saved_stated: State = test_data.contract_client.get_state();
 
-  assert_eq!(saved_stated.total_acct, 0);
-  assert_eq!(saved_stated.total_amnt, 0);
+  assert_eq!(saved_stated.total_acct, BigInt::zero(&test_data.env));
+  assert_eq!(saved_stated.total_amnt, BigInt::zero(&test_data.env));
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
     .set_acc(&new_recipient, &amount_to_receive);
 
-  let mut amount_saved: i128 = test_data.contract_client.get_acc(&new_recipient);
+  let mut amount_saved: u32 = test_data.contract_client.get_acc(&new_recipient);
   saved_stated = test_data.contract_client.get_state();
-  assert_eq!(amount_to_receive.clone(), amount_saved);
-  assert_eq!(saved_stated.total_acct, 1);
+  assert_eq!(&amount_to_receive, &amount_saved);
+  assert_eq!(saved_stated.total_acct, BigInt::from_u32(&test_data.env, 1));
   assert_eq!(saved_stated.total_amnt, amount_saved);
 
   // We call it a second time with same user in order to test that we are correctly updating the amounts
@@ -111,25 +112,25 @@ fn test_set_account() {
 
   amount_saved = test_data.contract_client.get_acc(&new_recipient);
   saved_stated = test_data.contract_client.get_state();
-  assert_eq!(amount_saved, (amount_to_receive * 2));
-  assert_eq!(saved_stated.total_acct, 1);
-  assert_eq!(saved_stated.total_amnt, (amount_to_receive * 2));
+  assert_eq!(amount_saved, amount_to_receive.clone().mul(2));
+  assert_eq!(saved_stated.total_acct, BigInt::from_u32(&test_data.env, 1));
+  assert_eq!(saved_stated.total_amnt, amount_to_receive.clone().mul(2));
 
   // We use an extra user to verify we are adding extra accounts and extra amoutns correctly
   let new_recipient_2 = test_data.env.accounts().generate();
   test_data.contract_client
     .with_source_account(&test_data.admin)
-    .set_acc(&new_recipient_2, &amount_to_receive);
+    .set_acc(&new_recipient_2, &amount_to_receive.clone());
 
   amount_saved = test_data.contract_client.get_acc(&new_recipient_2);
   saved_stated = test_data.contract_client.get_state();
   assert_eq!(amount_saved, amount_to_receive);
-  assert_eq!(saved_stated.total_acct, 2);
-  assert_eq!(saved_stated.total_amnt, (amount_to_receive * 3));
+  assert_eq!(saved_stated.total_acct, BigInt::from_u32(&test_data.env, 2));
+  assert_eq!(saved_stated.total_amnt, &amount_to_receive.mul(3));
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Status(ContractError(4))")]
 fn test_auth_admin() {
   let test_data = create_test_basic_data();
 
@@ -137,7 +138,7 @@ fn test_auth_admin() {
 
   // This should work
   let acc_a = test_data.env.accounts().generate();
-  let amount_a = 100;
+  let amount_a: u32 = 100;
   test_data.contract_client
     .with_source_account(&test_data.admin)
     .set_acc(&acc_a, &amount_a);
@@ -145,21 +146,21 @@ fn test_auth_admin() {
   // This should fail
   let random = test_data.env.accounts().generate();
   let acc_b = test_data.env.accounts().generate();
-  let amount_b = 100;
+  let amount_b: u32 = 100;
   test_data.contract_client
     .with_source_account(&random)
     .set_acc(&acc_b, &amount_b);
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Status(ContractError(2))")]
 fn test_amount_must_be_1_at_least() {
   let test_data = create_test_basic_data();
 
   test_data.contract_client.initialize(&test_data.admin_id, &test_data.usdc_id);
 
   let new_recipient = test_data.env.accounts().generate();
-  let amount_to_receive = -1;
+  let amount_to_receive: u32 = 0;
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
@@ -172,35 +173,35 @@ fn test_deposit() {
 
   test_data.contract_client.initialize(&test_data.admin_id, &test_data.usdc_id);
 
-  let amount_to_deposit: i128 = 100000;
+  let amount_to_deposit: BigInt = BigInt::from_u32(&test_data.env, 100000);
 
   // Mint USDC tokens to the depositor (in this case the admin but the contract doesn't care who deposits)
   test_data.usdc_token_client
     .with_source_account(&test_data.token_admin)
     .mint(
       &Signature::Invoker,
-      &0,
+      &BigInt::zero(&test_data.env),
       &Identifier::Account(test_data.admin.clone()),
-      &(amount_to_deposit * 2),
+      &amount_to_deposit.clone().mul(&2),
     );
 
   assert_eq!(
     test_data.usdc_token_client.balance(&Identifier::Account(test_data.admin.clone())),
-    (amount_to_deposit * 2)
+    amount_to_deposit.clone().mul(&2)
   );
 
   test_data.usdc_token_client
     .with_source_account(&test_data.admin)
     .approve(
       &Signature::Invoker,
-      &0,
+      &BigInt::zero(&test_data.env),
       &Identifier::Contract(test_data.contract_id.clone()),
       &amount_to_deposit,
     );
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
-    .deposit(&amount_to_deposit);
+    .deposit(&amount_to_deposit.to_u32());
 
   assert_eq!(
     test_data.usdc_token_client.balance(&Identifier::Account(test_data.admin.clone())),
@@ -214,13 +215,17 @@ fn test_deposit() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "Status(ContractError(1))")]
 fn test_payout_not_enough_funds() {
   let test_data = create_test_basic_data();
   test_data.contract_client.initialize(&test_data.admin_id, &test_data.usdc_id);
   let new_recipient = test_data.env.accounts().generate();
-  test_data.contract_client.set_acc(&new_recipient, &100);
-  test_data.contract_client.payout();
+  test_data.contract_client
+    .with_source_account(&test_data.admin)
+    .set_acc(&new_recipient, &100);
+  test_data.contract_client
+    .with_source_account(&test_data.admin)
+    .payout();
 }
 
 #[test]
@@ -229,32 +234,32 @@ fn test_payout() {
   test_data.contract_client.initialize(&test_data.admin_id, &test_data.usdc_id);
 
   let recipient_1 = test_data.env.accounts().generate();
-  let recipient_amount_1 = 5000;
+  let recipient_amount_1 = BigInt::from_u32(&test_data.env, 5000);
   let recipient_2 = test_data.env.accounts().generate();
-  let recipient_amount_2 = 2450;
+  let recipient_amount_2 = BigInt::from_u32(&test_data.env, 2450);
   let recipient_3 = test_data.env.accounts().generate();
-  let recipient_amount_3 = 1800;
+  let recipient_amount_3 = BigInt::from_u32(&test_data.env, 1800);
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
-    .set_acc(&recipient_1, &recipient_amount_1);
+    .set_acc(&recipient_1, &recipient_amount_1.to_u32());
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
-    .set_acc(&recipient_2, &recipient_amount_2);
+    .set_acc(&recipient_2, &recipient_amount_2.to_u32());
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
-    .set_acc(&recipient_3, &recipient_amount_3);
+    .set_acc(&recipient_3, &recipient_amount_3.to_u32());
 
-  let admin_funds: i128 = 10000;
+  let admin_funds: BigInt = BigInt::from_u32(&test_data.env, 10000);
   test_data.usdc_token_client
     .with_source_account(&test_data.token_admin)
     .mint(
       &Signature::Invoker,
-      &0,
+      &BigInt::zero(&test_data.env),
       &Identifier::Account(test_data.admin.clone()),
-      &admin_funds,
+      &admin_funds.clone(),
     );
 
   assert_eq!(
@@ -266,18 +271,18 @@ fn test_payout() {
     .with_source_account(&test_data.admin)
     .approve(
       &Signature::Invoker,
-      &0,
+      &BigInt::zero(&test_data.env),
       &Identifier::Contract(test_data.contract_id.clone()),
-      &(admin_funds + 1),
+      &admin_funds.clone().add(1),
     );
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
-    .deposit(&admin_funds);
+    .deposit(&admin_funds.clone().to_u32());
 
   assert_eq!(
     test_data.usdc_token_client.balance(&Identifier::Account(test_data.admin.clone())),
-    0 as i128
+    BigInt::zero(&test_data.env)
   );
 
   assert_eq!(
@@ -291,7 +296,10 @@ fn test_payout() {
 
   assert_eq!(
     test_data.usdc_token_client.balance(&Identifier::Contract(test_data.contract_id.clone())),
-    (admin_funds - recipient_amount_1 - recipient_amount_2 - recipient_amount_3)
+    admin_funds
+      .sub(recipient_amount_1.clone())
+      .sub(recipient_amount_2.clone())
+      .sub(recipient_amount_3.clone())
   );
 
   assert_eq!(
