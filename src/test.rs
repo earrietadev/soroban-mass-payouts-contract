@@ -67,8 +67,8 @@ fn test_initialize_of_contract() {
 
   let contract_state: State = test_data.contract_client.get_state();
 
-  assert_eq!(contract_state.total_amnt, BigInt::zero(&test_data.env));
-  assert_eq!(contract_state.total_acct, BigInt::zero(&test_data.env));
+  assert_eq!(contract_state.total_amnt, 0);
+  assert_eq!(contract_state.total_acct, 0);
   assert_eq!(contract_state.admin, test_data.admin_id);
   assert_eq!(contract_state.currency, test_data.usdc_id);
 }
@@ -92,8 +92,8 @@ fn test_set_account() {
   let amount_to_receive: u32 = 2500;
   let mut saved_stated: State = test_data.contract_client.get_state();
 
-  assert_eq!(saved_stated.total_acct, BigInt::zero(&test_data.env));
-  assert_eq!(saved_stated.total_amnt, BigInt::zero(&test_data.env));
+  assert_eq!(saved_stated.total_acct, 0);
+  assert_eq!(saved_stated.total_amnt, 0);
 
   test_data.contract_client
     .with_source_account(&test_data.admin)
@@ -102,7 +102,7 @@ fn test_set_account() {
   let mut amount_saved: u32 = test_data.contract_client.get_acc(&new_recipient);
   saved_stated = test_data.contract_client.get_state();
   assert_eq!(&amount_to_receive, &amount_saved);
-  assert_eq!(saved_stated.total_acct, BigInt::from_u32(&test_data.env, 1));
+  assert_eq!(saved_stated.total_acct, 1);
   assert_eq!(saved_stated.total_amnt, amount_saved);
 
   // We call it a second time with same user in order to test that we are correctly updating the amounts
@@ -113,7 +113,7 @@ fn test_set_account() {
   amount_saved = test_data.contract_client.get_acc(&new_recipient);
   saved_stated = test_data.contract_client.get_state();
   assert_eq!(amount_saved, amount_to_receive.clone().mul(2));
-  assert_eq!(saved_stated.total_acct, BigInt::from_u32(&test_data.env, 1));
+  assert_eq!(saved_stated.total_acct, 1);
   assert_eq!(saved_stated.total_amnt, amount_to_receive.clone().mul(2));
 
   // We use an extra user to verify we are adding extra accounts and extra amoutns correctly
@@ -125,8 +125,8 @@ fn test_set_account() {
   amount_saved = test_data.contract_client.get_acc(&new_recipient_2);
   saved_stated = test_data.contract_client.get_state();
   assert_eq!(amount_saved, amount_to_receive);
-  assert_eq!(saved_stated.total_acct, BigInt::from_u32(&test_data.env, 2));
-  assert_eq!(saved_stated.total_amnt, &amount_to_receive.mul(3));
+  assert_eq!(saved_stated.total_acct, 2);
+  assert_eq!(saved_stated.total_amnt, amount_to_receive.mul(3));
 }
 
 #[test]
@@ -282,7 +282,7 @@ fn test_payout() {
 
   assert_eq!(
     test_data.usdc_token_client.balance(&Identifier::Account(test_data.admin.clone())),
-    BigInt::zero(&test_data.env)
+    0
   );
 
   assert_eq!(

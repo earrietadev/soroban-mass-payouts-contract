@@ -12,8 +12,8 @@ mod token {
 pub struct State {
     admin: Address,
     currency: BytesN<32>,
-    total_acct: BigInt,
-    total_amnt: BigInt,
+    total_acct: u32,
+    total_amnt: u32,
 }
 const STATE: Symbol = symbol!("STATE");
 const PUB_KEYS: Symbol = symbol!("PUB_KEYS");
@@ -87,8 +87,8 @@ impl MassPayoutContractTrait for MassPayoutContract {
         let state = State {
             admin,
             currency,
-            total_acct: BigInt::zero(&env),
-            total_amnt: BigInt::zero(&env)
+            total_acct: 0,
+            total_amnt: 0
         };
 
         env.data().set(STATE, state);
